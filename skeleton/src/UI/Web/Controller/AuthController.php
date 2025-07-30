@@ -2,6 +2,8 @@
 
 namespace App\UI\Web\Controller;
 
+use App\Domain\Patient\Entity\Patient;
+use App\Domain\Therapist\Entity\Therapist;
 use App\Domain\User\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,26 +16,38 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 
 class AuthController extends AbstractController
 {
-    #[Route('/register', name: 'app_register')]
-    public function register(
-        Request $request,
-        EntityManagerInterface $em,
-        UserPasswordHasherInterface $passwordHasher
-    ): Response {
+    #[Route('/register', name: 'register')]
+    public function register(Request $request, EntityManagerInterface $em, UserPasswordHasherInterface $hasher): Response
+    {
         if ($request->isMethod('POST')) {
             $email = $request->request->get('email');
-            $plainPassword = $request->request->get('password');
-            $role = $request->request->get('role', 'ROLE_PATIENT');
+            $password = $request->request->get('password');
+            $type = $request->request->get('type');
 
             $user = new User();
             $user->setEmail($email);
-            $user->setPassword($passwordHasher->hashPassword($user, $plainPassword));
-            $user->setRoles([$role]);
+            $user->setPassword($hasher->hashPassword($user, $password));
+
+            if ($type === 'patient') {
+                $user->setRoles(['ROLE_PATIENT']);
+                $patient = new Patient();
+                $patient->setUser($user);
+                $em->persist($patient);
+                $user->setPatient($patient);
+            } elseif ($type === 'therapist') {
+                $user->setRoles(['ROLE_THERAPIST']);
+                $therapist = new Therapist();
+                $therapist->setUser($user);
+                $em->persist($therapist);
+                $user->setTherapist($therapist);
+            } else {
+                throw new \InvalidArgumentException('Tipo de usuario no válido');
+            }
 
             $em->persist($user);
             $em->flush();
 
-            return $this->redirectToRoute('app_login');
+            return $this->redirectToRoute('login');
         }
 
         return $this->render('auth/register.html.twig');
